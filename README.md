@@ -2,6 +2,16 @@
 
 A command-line tool for randomly selecting and copying FLAC albums while optimizing cover art.
 
+## Introduction
+
+I planned to write this utility with the help of artificial intelligence, as part of the “vibe coding” trend. But things didn't go as I expected, so I had to write it myself in one evening.
+
+I have a collection of audio CDs that I digitized and keep on the server. All the tags are written using MusicBrainz Picard, the covers are embedded, and they are saved in album.jpg or album.png files. Everything is nicely organized in directories like `/path/to/music/AlbumArtist/Year - AlbumName/TrackNumber - TrackName.flac`.
+
+Recently, I got an iPod Video 80gb with RockBox on board and realized that it's not a good idea to just copy the library to it. First of all, along with the tracks there are logs and cue files after digitization, scanned printing, which are useless on a portable player. Secondly, even the covers are of a large size, which the player cannot load into memory to display. Thirdly, and probably the most important thing is that a large number of albums does not allow me to focus on listening to music, and choosing what to listen to, I just start to procrastinate. That's why the idea of this utility was born: copy 10 random albums from the collection, remove unnecessary embedded covers, which will save some space (they are not supported on RockBox anyway) and create a 240 by 240 pixel cover.jpg next to the tracks. 
+
+I hope you will find this utility useful too.
+
 ## Features
 
 - Randomly select and copy FLAC albums from a source directory
