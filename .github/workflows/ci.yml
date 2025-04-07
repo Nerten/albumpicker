@@ -1,12 +1,12 @@
-name: release
-
+name: golangci-lint
 on:
   push:
+    branches:
     tags:
-      - "v*"
+  pull_request:
 
 jobs:
-  goreleaser:
+  golangci:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -19,11 +19,7 @@ jobs:
         with:
           go-version: stable
 
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v7
         with:
-          distribution: goreleaser
-          version: "~> v2"
-          args: release --clean
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          version: v2.0
