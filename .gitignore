@@ -24,6 +24,12 @@ go.work.sum
 # env file
 .env
 
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+
 .DS_Store
 test/
 albumpicker

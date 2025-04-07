@@ -1,4 +1,4 @@
-package command
+package cmd
 
 import (
 	"os"
@@ -10,13 +10,13 @@ import (
 )
 
 func TestRunCopyCommand(t *testing.T) {
-	// Get project root directory
-	projectRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	// get project root directory
+	projectRoot, err := filepath.Abs("..")
 	if err != nil {
 		t.Fatalf("Failed to get project root: %v", err)
 	}
 
-	// Test data paths
+	// test data paths
 	testDataDir := filepath.Join(projectRoot, "test_data")
 	testFlac := filepath.Join(testDataDir, "01 - test.flac")
 	testCover := filepath.Join(testDataDir, "album.png")
@@ -24,7 +24,7 @@ func TestRunCopyCommand(t *testing.T) {
 		testCover = filepath.Join(testDataDir, "cover.jpg")
 	}
 
-	// Verify test files exist
+	// verify test files exist
 	if _, err := os.Stat(testFlac); os.IsNotExist(err) {
 		t.Fatalf("Test FLAC file not found at %s", testFlac)
 	}
@@ -32,23 +32,23 @@ func TestRunCopyCommand(t *testing.T) {
 		t.Fatalf("Test cover file not found at %s", testCover)
 	}
 
-	// Create temporary directories
+	// create temporary directories
 	tmpDir, err := os.MkdirTemp("", "albumpicker-test-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	// Setup test directory structure
+	// setup test directory structure
 	sourceDir := filepath.Join(tmpDir, "source")
 	destDir := filepath.Join(tmpDir, "dest")
 	albumDir := filepath.Join(sourceDir, "artist", "test - album")
 
-	if err := os.MkdirAll(albumDir, 0755); err != nil {
+	if err := os.MkdirAll(albumDir, 0o755); err != nil {
 		t.Fatalf("Failed to create album directory: %v", err)
 	}
 
-	// Copy test files to album directory
+	// copy test files to album directory
 	if err := copyFile(testFlac, filepath.Join(albumDir, "01 - test.flac")); err != nil {
 		t.Fatalf("Failed to copy test FLAC file: %v", err)
 	}
@@ -95,36 +95,36 @@ func TestRunCopyCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Reset viper and setup test configuration
+			// reset viper and setup test configuration
 			viper.Reset()
 			if tt.setup != nil {
 				tt.setup()
 			}
 
-			// Create a new command for testing
+			// create a new command for testing
 			cmd := &cobra.Command{}
 			err := runCopyCommand(cmd, tt.args)
 
-			// Check error
+			// check error
 			if (err != nil) != tt.wantErr {
 				t.Errorf("runCopyCommand() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if !tt.wantErr {
-				// Check if album was copied
+				// check if album was copied
 				destAlbum := filepath.Join(destDir, "artist", "test - album")
 				if _, err := os.Stat(destAlbum); os.IsNotExist(err) {
 					t.Errorf("Album directory was not created in destination")
 				}
 
-				// Check if FLAC file was copied
+				// check if FLAC file was copied
 				destFlac := filepath.Join(destAlbum, "01 - test.flac")
 				if _, err := os.Stat(destFlac); os.IsNotExist(err) {
 					t.Errorf("FLAC file was not copied to destination")
 				}
 
-				// Check if cover file was copied
+				// check if cover file was copied
 				destCover := filepath.Join(destAlbum, "album.jpg")
 				if _, err := os.Stat(destCover); os.IsNotExist(err) {
 					t.Errorf("Cover file was not copied to destination")
@@ -139,5 +139,5 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(dst, data, 0644)
+	return os.WriteFile(dst, data, 0o644)
 }

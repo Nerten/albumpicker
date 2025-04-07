@@ -11,4 +11,11 @@ test:
 	go tool cover -func=coverage_no_mocks.out
 	rm coverage.out coverage_no_mocks.out
 
-.PHONY: build test
+update:
+	go get -u ./...
+	go mod tidy
+
+lint:
+	golangci-lint run
+
+.PHONY: lint test build

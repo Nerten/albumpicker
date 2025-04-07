@@ -2,33 +2,45 @@ package processor
 
 import (
 	"fmt"
+	"github.com/go-flac/go-flac"
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/go-flac/go-flac"
 )
 
-// ProcessFLACWithLibrary processes a single FLAC file by removing PICTURE blocks and copying it to the destination
-func ProcessFLACWithLibrary(flacFile, srcAlbumPath, destAlbumPath string) error {
-	// Get the relative path from album directory
+// ProcessFLACFile processes a single FLAC file
+func ProcessFLACFile(flacFile, srcAlbumPath, destAlbumPath string) error {
+	// try to use the FLAC library to process the file
+	err := processFLACWithLibrary(flacFile, srcAlbumPath, destAlbumPath)
+	if err != nil {
+		// if processing with the library fails, fall back to simple copy
+		fmt.Fprintf(os.Stderr, "Warning: Failed to process FLAC with library: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Falling back to simple copy (PICTURE blocks will not be removed)\n")
+		return simpleCopyFLACFile(flacFile, srcAlbumPath, destAlbumPath)
+	}
+	return nil
+}
+
+// processFLACWithLibrary processes a single FLAC file by removing PICTURE blocks and copying it to the destination
+func processFLACWithLibrary(flacFile, srcAlbumPath, destAlbumPath string) error {
+	// get the relative path from album directory
 	relFilePath, err := filepath.Rel(srcAlbumPath, flacFile)
 	if err != nil {
 		return fmt.Errorf("error getting relative file path: %s", err)
 	}
 
-	// Create the destination file path
+	// create the destination file path
 	destFilePath := filepath.Join(destAlbumPath, relFilePath)
 
 	fmt.Printf("  Processing FLAC file: %s\n", relFilePath)
 
-	// Parse FLAC file
+	// parse FLAC file
 	file, err := flac.ParseFile(flacFile)
 	if err != nil {
 		return fmt.Errorf("error parsing FLAC file: %s", err)
 	}
 
-	// Remove all PICTURE metadata blocks
+	// remove all PICTURE metadata blocks
 	var newMetadata []*flac.MetaDataBlock
 	for _, block := range file.Meta {
 		if block.Type != flac.Picture && block.Type != flac.Padding {
@@ -37,7 +49,7 @@ func ProcessFLACWithLibrary(flacFile, srcAlbumPath, destAlbumPath string) error 
 	}
 	file.Meta = newMetadata
 
-	// Write modified FLAC to destination
+	// write modified FLAC to destination
 	if err := file.Save(destFilePath); err != nil {
 		return fmt.Errorf("error saving FLAC file: %s", err)
 	}
@@ -45,35 +57,35 @@ func ProcessFLACWithLibrary(flacFile, srcAlbumPath, destAlbumPath string) error 
 	return nil
 }
 
-// SimpleCopyFLACFile is a fallback method that copies the FLAC file without processing it
+// simpleCopyFLACFile is a fallback method that copies the FLAC file without processing it
 // This can be used if the go-flac library fails or is not available
-func SimpleCopyFLACFile(flacFile, srcAlbumPath, destAlbumPath string) error {
-	// Get the relative path from album directory
+func simpleCopyFLACFile(flacFile, srcAlbumPath, destAlbumPath string) error {
+	// get the relative path from album directory
 	relFilePath, err := filepath.Rel(srcAlbumPath, flacFile)
 	if err != nil {
 		return fmt.Errorf("error getting relative file path: %s", err)
 	}
 
-	// Create the destination file path
+	// create the destination file path
 	destFilePath := filepath.Join(destAlbumPath, relFilePath)
 
 	fmt.Printf("  Copying FLAC file (without processing): %s\n", relFilePath)
 
-	// Open source file
+	// open source file
 	srcFile, err := os.Open(flacFile)
 	if err != nil {
 		return fmt.Errorf("error opening source file: %s", err)
 	}
 	defer srcFile.Close()
 
-	// Create destination file
+	// create destination file
 	destFile, err := os.Create(destFilePath)
 	if err != nil {
 		return fmt.Errorf("error creating destination file: %s", err)
 	}
 	defer destFile.Close()
 
-	// Copy file contents
+	// copy file contents
 	_, err = io.Copy(destFile, srcFile)
 	if err != nil {
 		return fmt.Errorf("error copying file: %s", err)
