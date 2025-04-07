@@ -26,3 +26,6 @@ go.work.sum
 
 .DS_Store
 test/
+albumpicker
+# Added by goreleaser init:
+dist/
