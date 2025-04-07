@@ -1,5 +1,5 @@
 
-all: test build
+all: lint test build
 
 build:
 	goreleaser build --single-target --snapshot --clean -o albumpicker
@@ -18,4 +18,4 @@ update:
 lint:
 	golangci-lint run
 
-.PHONY: lint test build
+.PHONY: build test update lint

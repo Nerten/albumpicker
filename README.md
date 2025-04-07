@@ -21,7 +21,13 @@ I hope you will find this utility useful too.
 
 ## Installation
 
-```bash
+### Binary Releases
+
+Download the appropriate binary for your platform from [latest release](https://github.com/nerten/albumpicker/releases/latest).
+
+### Go
+
+```sh
 go install github.com/nerten/albumpicker@latest
 ```
 
@@ -61,19 +67,19 @@ cover_height: 240
 
 ### Pick Random Albums
 
-```bash
+```sh
 albumpicker pick
 ```
 You got in `/path/to/picked` 10 random albums with optimized cover art with folder structure that looks like your music library inside `/path/to/music`
 
 ### Copy Single Album
 
-```bash
+```sh
 albumpicker copy /path/to/music/Artist/Album
 ```
 or, if you already inside `/path/to/music/Artist/Album` just run:
 
-```bash
+```sh
 albumpicker copy .
 ```
 
@@ -94,12 +100,18 @@ albumpicker copy .
 
 ### Building
 
-```bash
-go build -o albumpicker
+```sh
+make build
 ```
 
 ### Testing
 
-```bash
-go test ./...
+```sh
+make lint test
+```
+
+### Update dependencies
+
+```sh
+make update
 ```
