@@ -33,7 +33,7 @@ func FindAllAlbums(rootDir string) ([]string, error) {
 			// check for FLAC files directly in this directory
 			hasFlac := false
 			for _, entry := range entries {
-				if !entry.IsDir() && filepath.Ext(entry.Name()) == ".flac" {
+				if isFlacFile(entry) {
 					hasFlac = true
 					break
 				}
@@ -131,7 +131,7 @@ func ProcessAlbum(albumPath string, config *config.Config) error {
 
 	var flacFiles []string
 	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".flac" {
+		if isFlacFile(entry) {
 			flacFiles = append(flacFiles, filepath.Join(albumPath, entry.Name()))
 		}
 	}
@@ -177,4 +177,8 @@ func isSubPath(basePath, targetPath string) bool {
 
 	// check if target path starts with base path
 	return absTarget != absBase && strings.HasPrefix(absTarget, absBase+string(os.PathSeparator))
+}
+
+func isFlacFile(entry os.DirEntry) bool {
+	return !entry.IsDir() && filepath.Ext(entry.Name()) == ".flac" && !strings.HasPrefix(entry.Name(), "._")
 }
