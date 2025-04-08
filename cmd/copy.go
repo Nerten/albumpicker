@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -29,12 +30,16 @@ func runCopyCommand(_ *cobra.Command, args []string) error {
 		return err
 	}
 
-	albumPath := args[0]
+	path := args[0]
 	// ensure album path is absolute
-	if !filepath.IsAbs(albumPath) {
-		albumPath = filepath.Join(conf.Source, albumPath)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(conf.Source, path)
 	}
 
+	albums, err := processor.FindAllAlbums(path)
+	if err != nil {
+		return fmt.Errorf("error scanning %s directory: %s", path, err)
+	}
 	// process the album
-	return processor.ProcessAlbum(albumPath, conf)
+	return processor.ProcessAlbums(albums, conf)
 }

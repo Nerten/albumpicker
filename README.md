@@ -4,11 +4,11 @@ A command-line tool for randomly selecting and copying FLAC albums while optimiz
 
 ## Introduction
 
-I planned to write this utility with the help of artificial intelligence, as part of the “vibe coding” trend. But things didn't go as I expected, so I had to write it myself in one evening.
+I planned to write this utility with the help of artificial intelligence as part of the “vibe coding” trend. But things didn't go as I expected, so I had to write it myself in one evening.
 
 I have a collection of audio CDs that I digitized and keep on the server. All the tags are written using MusicBrainz Picard, the covers are embedded, and they are saved in album.jpg or album.png files. Everything is nicely organized in directories like `/path/to/music/AlbumArtist/Year - AlbumName/TrackNumber - TrackName.flac`.
 
-Recently, I got an iPod Video 80gb with RockBox on board and realized that it's not a good idea to just copy the library to it. First of all, along with the tracks there are logs and cue files after digitization, scanned printing, which are useless on a portable player. Secondly, even the covers are of a large size, which the player cannot load into memory to display. Thirdly, and probably the most important thing is that a large number of albums does not allow me to focus on listening to music, and choosing what to listen to, I just start to procrastinate. That's why the idea of this utility was born: copy 10 random albums from the collection, remove unnecessary embedded covers, which will save some space (they are not supported on RockBox anyway) and create a 240 by 240 pixel cover.jpg next to the tracks. 
+Recently, I got an iPod Video 80GB with RockBox on board and realized that it's not a good idea to just copy the library to it. Firstly, along with the tracks, there are logs and cue files after digitization, scanned printing, which are useless on a portable player. Secondly, even the covers are of a large size, which the player cannot load into memory to display. Thirdly, and probably the most important thing, numerous albums do not allow me to focus on listening to music and choosing what to listen to I just start to procrastinate. That's why the idea of this utility was born: copy 10 random albums from the collection, remove unnecessary embedded covers, which will save some space (they are not supported on RockBox anyway), and create a 240 by 240 pixel cover.jpg next to the tracks.
 
 I hope you will find this utility useful too.
 
@@ -23,7 +23,7 @@ I hope you will find this utility useful too.
 
 ### Binary Releases
 
-Download the appropriate binary for your platform from [latest release](https://github.com/nerten/albumpicker/releases/latest).
+Download the appropriate binary for your platform from [the latest release](https://github.com/nerten/albumpicker/releases/latest).
 
 ### Go
 
@@ -49,7 +49,7 @@ cover_filenames:
 output_cover_filename: cover.jpg
 cover_height: 240
 ```
-I recommend to set the `source` and `destination` in the config file.
+I recommend setting the `source` and `destination` in the config file.
 
 For example:
 ```yaml
@@ -72,15 +72,40 @@ albumpicker pick
 ```
 You got in `/path/to/picked` 10 random albums with optimized cover art with folder structure that looks like your music library inside `/path/to/music`
 
-### Copy Single Album
+### Pick Random Albums
+
+```sh
+albumpicker pick
+```
+You got in `/path/to/picked` 10 random albums with optimized cover art with folder structure that looks like your music library inside `/path/to/music`
+
+### Copy Albums
+
+**Copy single album**
 
 ```sh
 albumpicker copy /path/to/music/Artist/Album
 ```
-or, if you already inside `/path/to/music/Artist/Album` just run:
-
+or, if you're already inside folder `/path/to/music/Artist/Album` just run:
 ```sh
 albumpicker copy .
+```
+
+**Copy all albums of artist**
+
+```sh
+albumpicker copy /path/to/music/Artist
+```
+or, if you're already inside folder `/path/to/music/Artist` just run:
+```sh
+albumpicker copy .
+```
+
+**NB**
+
+You can even copy all the music library, if you have enough space.
+```sh
+albumpicker copy /path/to/music
 ```
 
 ### Command Line Options
