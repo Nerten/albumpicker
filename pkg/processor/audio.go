@@ -160,7 +160,7 @@ func encodeSynchsafe(size int) []byte {
 func buildAPICFrame(imgData []byte) []byte {
 	mime := "image/jpeg\x00"
 	contentSize := 1 + len(mime) + 1 + 1 + len(imgData)
-	if contentSize < 0 || contentSize > math.MaxUint32 {
+	if contentSize < 0 || uint64(contentSize) > math.MaxUint32 {
 		return nil
 	}
 	frame := make([]byte, 10+contentSize)

@@ -51,7 +51,7 @@ func CreateFLACPictureBlock(imgData []byte, mimeType string, width, height uint3
 	}
 	mimeLen := len(mimeType)
 	dataLen := len(imgData)
-	if mimeLen < 0 || mimeLen > math.MaxUint32 || dataLen < 0 || dataLen > math.MaxUint32 {
+	if mimeLen < 0 || uint64(mimeLen) > math.MaxUint32 || dataLen < 0 || uint64(dataLen) > math.MaxUint32 {
 		return nil
 	}
 	blockLen := 4 + 4 + mimeLen + 4 + 16 + 4 + dataLen
