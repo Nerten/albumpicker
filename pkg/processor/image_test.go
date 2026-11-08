@@ -40,7 +40,7 @@ func TestProcessCoverFile(t *testing.T) {
 		CoverHeight:     240,
 	}
 
-	err = ProcessCoverFile(srcDir, destDir, cfg)
+	_, err = ProcessCoverFile(srcDir, destDir, cfg)
 	if err != nil {
 		t.Errorf("processCoverFile() error = %v", err)
 	}
@@ -89,7 +89,7 @@ func TestProcessImageWithLibrary(t *testing.T) {
 		CoverHeight:     240,
 	}
 
-	err = processImageWithLibrary(srcFile, destDir, cfg)
+	_, err = processImageWithLibrary(srcFile, destDir, cfg)
 	if err != nil {
 		t.Errorf("ProcessImageWithLibrary() error = %v", err)
 	}
@@ -133,7 +133,7 @@ func TestFallbackCopyCover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = fallbackCopyCover(srcFile, destDir, "cover.jpg")
+	_, err = fallbackCopyCover(srcFile, destDir, "cover.jpg")
 	if err != nil {
 		t.Errorf("FallbackCopyCover() error = %v", err)
 	}
@@ -156,3 +156,88 @@ func TestFallbackCopyCover(t *testing.T) {
 		t.Errorf("Output file is not a valid image: %v", err)
 	}
 }
+
+func TestProcessImageBytes(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "image_bytes_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	testDataDir := "../../test_data"
+	imgBytes, err := os.ReadFile(filepath.Join(testDataDir, "album.png"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		OutputCoverName: "extracted.jpg",
+		CoverHeight:     150,
+	}
+
+	_, err = ProcessImageBytes(imgBytes, destDir, cfg)
+	if err != nil {
+		t.Fatalf("ProcessImageBytes() error = %v", err)
+	}
+
+	destFile := filepath.Join(destDir, "extracted.jpg")
+	outFile, err := os.Open(destFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer outFile.Close()
+
+	outImg, _, err := image.Decode(outFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if outImg.Bounds().Dy() != 150 {
+		t.Errorf("expected height 150, got %d", outImg.Bounds().Dy())
+	}
+}
+
+func TestProcessCoverFileWithEmbedded(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "embedded_cover_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	testDataDir := "../../test_data"
+	imgBytes, err := os.ReadFile(filepath.Join(testDataDir, "cover.jpg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	srcEmptyDir := filepath.Join(tmpDir, "empty_src")
+	if err := os.MkdirAll(srcEmptyDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		CoverFilenames:  []string{"nonexistent.jpg"},
+		OutputCoverName: "cover.jpg",
+		CoverHeight:     200,
+	}
+
+	// Should extract from embeddedCover since external cover does not exist
+	_, err = ProcessCoverFile(srcEmptyDir, destDir, cfg, imgBytes)
+	if err != nil {
+		t.Fatalf("ProcessCoverFile with embeddedCover error = %v", err)
+	}
+
+	destFile := filepath.Join(destDir, "cover.jpg")
+	if _, err := os.Stat(destFile); os.IsNotExist(err) {
+		t.Error("Destination cover was not created from embedded cover")
+	}
+}
+

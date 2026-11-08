@@ -4,9 +4,6 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 func TestRunPickCommand(t *testing.T) {
@@ -68,94 +65,78 @@ func TestRunPickCommand(t *testing.T) {
 		t.Fatalf("Failed to create test file in destination: %v", err)
 	}
 
+	// create a dummy config file in tmpDir
+	configFile := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configFile, []byte("cover_filenames:\n  - cover.jpg\noutput_cover_filename: cover.jpg\ncover_height: 240\n"), 0o644); err != nil {
+		t.Fatalf("Failed to create test config file: %v", err)
+	}
+
 	tests := []struct {
 		name    string
-		setup   func(*cobra.Command)
+		args    []string
 		wantErr bool
 		check   func(*testing.T)
 	}{
 		{
-			name: "basic pick command",
-			setup: func(cmd *cobra.Command) {
-				viper.Set("source", sourceDir)
-				viper.Set("destination", destDir)
-				viper.Set("albums_count", 1)
-				viper.Set("cover_filenames", []string{"cover.jpg"})
-				viper.Set("output_cover_filename", "cover.jpg")
-				viper.Set("cover_height", 240)
-			},
+			name:    "basic pick command",
+			args:    []string{"-c", configFile, "-s", sourceDir, "-d", destDir, "-n", "1"},
 			wantErr: false,
 			check: func(t *testing.T) {
-				// check if album was copied
 				destAlbum := filepath.Join(destDir, "test-album")
 				if _, err := os.Stat(destAlbum); os.IsNotExist(err) {
 					t.Errorf("Album directory was not created in destination")
 				}
 
-				// check if FLAC file was copied
 				destFlac := filepath.Join(destAlbum, "test.flac")
 				if _, err := os.Stat(destFlac); os.IsNotExist(err) {
 					t.Errorf("FLAC file was not copied to destination")
 				}
 
-				// check if existing file still exists (not wiped)
 				if _, err := os.Stat(destTestFile); os.IsNotExist(err) {
 					t.Errorf("Existing file was unexpectedly removed")
 				}
 			},
 		},
 		{
-			name: "pick with wipe flag",
-			setup: func(cmd *cobra.Command) {
-				viper.Set("source", sourceDir)
-				viper.Set("destination", destDir)
-				viper.Set("albums_count", 1)
-				cmd.Flags().Set("wipe", "true")
-			},
+			name:    "pick with wipe flag",
+			args:    []string{"-c", configFile, "-s", sourceDir, "-d", destDir, "-n", "1", "--wipe"},
 			wantErr: false,
 			check: func(t *testing.T) {
-				// check if album was copied
 				destAlbum := filepath.Join(destDir, "test-album")
 				if _, err := os.Stat(destAlbum); os.IsNotExist(err) {
 					t.Errorf("Album directory was not created in destination")
 				}
 
-				// check if existing file was wiped
 				if _, err := os.Stat(destTestFile); !os.IsNotExist(err) {
 					t.Errorf("Existing file was not removed despite wipe flag")
 				}
 			},
 		},
 		{
-			name: "invalid source directory",
-			setup: func(cmd *cobra.Command) {
-				viper.Set("source", "/nonexistent/path")
-				viper.Set("destination", destDir)
+			name:    "pick with embed-cover flag",
+			args:    []string{"-c", configFile, "-s", sourceDir, "-d", destDir, "-n", "1", "--embed-cover"},
+			wantErr: false,
+			check: func(t *testing.T) {
+				destAlbum := filepath.Join(destDir, "test-album")
+				if _, err := os.Stat(destAlbum); os.IsNotExist(err) {
+					t.Errorf("Album directory was not created in destination")
+				}
 			},
+		},
+		{
+			name:    "invalid source directory",
+			args:    []string{"-c", configFile, "-s", "/nonexistent/path", "-d", destDir},
 			wantErr: true,
 		},
 		{
-			name: "invalid destination directory",
-			setup: func(cmd *cobra.Command) {
-				viper.Set("source", sourceDir)
-				viper.Set("destination", "/nonexistent/path")
-			},
+			name:    "missing source and destination",
+			args:    []string{"-c", configFile},
 			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// reset viper and create a new command for testing
-			viper.Reset()
-			cmd := &cobra.Command{}
-			cmd.Flags().Bool("wipe", false, "wipe flag for testing")
-
-			// setup test configuration
-			if tt.setup != nil {
-				tt.setup(cmd)
-			}
-
 			// recreate test file for each test if it was deleted
 			if _, err := os.Stat(destTestFile); os.IsNotExist(err) {
 				if err := os.WriteFile(destTestFile, []byte("existing file"), 0o644); err != nil {
@@ -163,16 +144,13 @@ func TestRunPickCommand(t *testing.T) {
 				}
 			}
 
-			// run the command
-			err := runPickCommand(cmd, nil)
+			err := runPickCommand(tt.args)
 
-			// check error
 			if (err != nil) != tt.wantErr {
 				t.Errorf("runPickCommand() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			// run additional checks
 			if !tt.wantErr && tt.check != nil {
 				tt.check(t)
 			}

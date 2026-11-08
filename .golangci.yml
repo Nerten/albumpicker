@@ -36,6 +36,7 @@ linters:
       excludes:
         - G301
         - G304
+        - G404
     lll:
       line-length: 140
     misspell:

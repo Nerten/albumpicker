@@ -11,7 +11,7 @@ import (
 	"github.com/nerten/albumpicker/pkg/config"
 )
 
-// FindAllAlbums recursively finds all directories containing FLAC files
+// FindAllAlbums recursively finds all directories containing audio files
 func FindAllAlbums(rootDir string) ([]string, error) {
 	var albums []string
 	var mutex sync.Mutex
@@ -22,7 +22,7 @@ func FindAllAlbums(rootDir string) ([]string, error) {
 			return nil // continue walking despite the error
 		}
 
-		// check for FLAC files in current directory
+		// check for audio files in current directory
 		if info.IsDir() {
 			// read all entries in the current directory
 			entries, err := os.ReadDir(path)
@@ -30,17 +30,17 @@ func FindAllAlbums(rootDir string) ([]string, error) {
 				return nil
 			}
 
-			// check for FLAC files directly in this directory
-			hasFlac := false
+			// check for audio files directly in this directory
+			hasAudio := false
 			for _, entry := range entries {
-				if isFlacFile(entry) {
-					hasFlac = true
+				if isAudioFile(entry) {
+					hasAudio = true
 					break
 				}
 			}
 
-			if hasFlac {
-				// this directory contains FLAC files, treat it as an album
+			if hasAudio {
+				// this directory contains audio files, treat it as an album
 				mutex.Lock()
 				albums = append(albums, path)
 				mutex.Unlock()
@@ -75,11 +75,11 @@ func SelectRandomAlbums(albums []string, n int) []string {
 }
 
 // ProcessAlbums processes the selected albums
-func ProcessAlbums(albums []string, config *config.Config) error {
+func ProcessAlbums(albums []string, cfg *config.Config) error {
 	var errs []error
 
 	for _, albumPath := range albums {
-		if err := ProcessAlbum(albumPath, config); err != nil {
+		if err := ProcessAlbum(albumPath, cfg); err != nil {
 			errs = append(errs, fmt.Errorf("error processing album %s: %v", albumPath, err))
 		}
 	}
@@ -97,20 +97,20 @@ func ProcessAlbums(albums []string, config *config.Config) error {
 }
 
 // ProcessAlbum processes a single album
-func ProcessAlbum(albumPath string, config *config.Config) error {
+func ProcessAlbum(albumPath string, cfg *config.Config) error {
 	// check if album path is within source directory
-	if !isSubPath(config.Source, albumPath) {
-		return fmt.Errorf("album path %s is not within source directory %s", albumPath, config.Source)
+	if !isSubPath(cfg.Source, albumPath) {
+		return fmt.Errorf("album path %s is not within source directory %s", albumPath, cfg.Source)
 	}
 
 	// get the relative path from source directory
-	relPath, err := filepath.Rel(config.Source, albumPath)
+	relPath, err := filepath.Rel(cfg.Source, albumPath)
 	if err != nil {
 		return fmt.Errorf("error getting relative path: %s", err)
 	}
 
 	// check if destination album already exists
-	destAlbumPath := filepath.Join(config.Destination, relPath)
+	destAlbumPath := filepath.Join(cfg.Destination, relPath)
 	if _, err := os.Stat(destAlbumPath); err == nil {
 		fmt.Printf("Skipping existing album: %s\n", relPath)
 		return nil
@@ -123,37 +123,66 @@ func ProcessAlbum(albumPath string, config *config.Config) error {
 
 	fmt.Printf("Processing album: %s\n", relPath)
 
-	// find all FLAC files in the album
+	// find all audio files in the album
 	entries, err := os.ReadDir(albumPath)
 	if err != nil {
 		return fmt.Errorf("error reading directory: %s", err)
 	}
 
-	var flacFiles []string
+	var audioFiles []string
 	for _, entry := range entries {
-		if isFlacFile(entry) {
-			flacFiles = append(flacFiles, filepath.Join(albumPath, entry.Name()))
+		if isAudioFile(entry) {
+			audioFiles = append(audioFiles, filepath.Join(albumPath, entry.Name()))
 		}
 	}
 
-	fmt.Printf("Found %d FLAC files in album\n", len(flacFiles))
+	fmt.Printf("Found %d audio files in album\n", len(audioFiles))
 
-	if len(flacFiles) == 0 {
-		return fmt.Errorf("no FLAC files found in album: %s", relPath)
+	if len(audioFiles) == 0 {
+		return fmt.Errorf("no audio files found in album: %s", relPath)
 	}
 
-	// process FLAC files
-	for _, flacFile := range flacFiles {
-		if err := ProcessFLACFile(flacFile, albumPath, destAlbumPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Error processing FLAC file %s: %v\n", flacFile, err)
+	var embeddedCover []byte
+	// 1. Scan for external cover first
+	var coverFile string
+	for _, coverName := range cfg.CoverFilenames {
+		candidate := filepath.Join(albumPath, coverName)
+		if _, err := os.Stat(candidate); err == nil {
+			coverFile = candidate
+			break
+		}
+	}
+
+	// 2. If no external cover found, try to extract from the first audio file that has one
+	if coverFile == "" {
+		for _, audioFile := range audioFiles {
+			picData, err := ExtractPictureFromAudioFile(audioFile)
+			if err == nil && len(picData) > 0 {
+				embeddedCover = picData
+				break
+			}
+		}
+	}
+
+	// 3. Process cover file (creates destAlbumPath/cover.jpg for Rockbox and returns resized bytes)
+	optimizedCover, err := ProcessCoverFile(albumPath, destAlbumPath, cfg, embeddedCover)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Error processing cover for album %s: %v\n", albumPath, err)
+		// continue processing audio files despite cover error
+	}
+
+	// 4. If embed-cover is enabled and we have an optimized cover, embed it into audio files
+	var coverToEmbed []byte
+	if cfg.EmbedCover && len(optimizedCover) > 0 {
+		coverToEmbed = optimizedCover
+	}
+
+	// 5. Process audio files
+	for _, audioFile := range audioFiles {
+		if _, err := ProcessAudioFile(audioFile, albumPath, destAlbumPath, coverToEmbed); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Error processing audio file %s: %v\n", audioFile, err)
 			// continue processing other files despite the error
 		}
-	}
-
-	// process cover files
-	if err := ProcessCoverFile(albumPath, destAlbumPath, config); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Error processing cover for album %s: %v\n", albumPath, err)
-		// continue processing other albums despite the error
 	}
 
 	return nil
@@ -179,6 +208,16 @@ func isSubPath(basePath, targetPath string) bool {
 	return absTarget != absBase && strings.HasPrefix(absTarget, absBase+string(os.PathSeparator))
 }
 
-func isFlacFile(entry os.DirEntry) bool {
-	return !entry.IsDir() && filepath.Ext(entry.Name()) == ".flac" && !strings.HasPrefix(entry.Name(), "._")
+// isAudioFile checks if the directory entry is a supported audio file (.flac, .mp3, .m4a, .alac, .aac)
+func isAudioFile(entry os.DirEntry) bool {
+	if entry.IsDir() || strings.HasPrefix(entry.Name(), "._") {
+		return false
+	}
+	ext := strings.ToLower(filepath.Ext(entry.Name()))
+	switch ext {
+	case ".flac", ".mp3", ".m4a", ".alac", ".aac":
+		return true
+	default:
+		return false
+	}
 }

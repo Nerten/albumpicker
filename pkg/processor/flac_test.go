@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/go-flac/go-flac"
 )
 
 func TestProcessFLACWithLibrary(t *testing.T) {
@@ -23,9 +25,14 @@ func TestProcessFLACWithLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = processFLACWithLibrary(srcFile, testDataDir, destDir)
+	picData, err := processFLACWithLibrary(srcFile, testDataDir, destDir, nil)
 	if err != nil {
 		t.Errorf("ProcessFLACWithLibrary() error = %v", err)
+	}
+
+	// verify extracted picture
+	if len(picData) == 0 {
+		t.Error("Expected extracted picture from test FLAC, got empty")
 	}
 
 	// verify output file exists
@@ -34,7 +41,18 @@ func TestProcessFLACWithLibrary(t *testing.T) {
 		t.Error("Destination file was not created")
 	}
 
-	// verify file size (should be smaller or equal due to removed PICTURE blocks)
+	// verify destination FLAC has NO picture blocks
+	parsedDest, err := flac.ParseFile(destFile)
+	if err != nil {
+		t.Fatalf("Failed to parse destination FLAC: %v", err)
+	}
+	for _, block := range parsedDest.Meta {
+		if block.Type == flac.Picture {
+			t.Error("Destination FLAC file still contains PICTURE block")
+		}
+	}
+
+	// verify file size (should be smaller due to removed PICTURE blocks)
 	srcInfo, err := os.Stat(srcFile)
 	if err != nil {
 		t.Fatal(err)
@@ -44,8 +62,8 @@ func TestProcessFLACWithLibrary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if destInfo.Size() > srcInfo.Size() {
-		t.Error("Processed file is larger than source file")
+	if destInfo.Size() >= srcInfo.Size() {
+		t.Errorf("Processed file is not smaller than source file (dest=%d, src=%d)", destInfo.Size(), srcInfo.Size())
 	}
 }
 
@@ -113,9 +131,12 @@ func TestProcessFLACFile(t *testing.T) {
 		t.Fatalf("Test FLAC file not found: %s", testFlac)
 	}
 
-	err = ProcessFLACFile(testFlac, srcDir, destDir)
+	picData, err := ProcessFLACFile(testFlac, srcDir, destDir)
 	if err != nil {
-		t.Errorf("processFLACFile() error = %v", err)
+		t.Errorf("ProcessFLACFile() error = %v", err)
+	}
+	if len(picData) == 0 {
+		t.Error("Expected picture data from ProcessFLACFile")
 	}
 
 	// check if destination file exists
@@ -123,18 +144,75 @@ func TestProcessFLACFile(t *testing.T) {
 	if _, err := os.Stat(destFile); os.IsNotExist(err) {
 		t.Error("Destination FLAC file was not created")
 	}
+}
 
-	// verify file size (should be smaller or equal due to removed PICTURE blocks)
-	srcInfo, err := os.Stat(testFlac)
+func TestProcessFLACFile_EmbedCover(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "albumpicker_flac_embed_test")
 	if err != nil {
 		t.Fatal(err)
 	}
-	destInfo, err := os.Stat(destFile)
-	if err != nil {
+	defer os.RemoveAll(tmpDir)
+
+	testDataDir := "../../test_data"
+	srcFile := filepath.Join(testDataDir, "01 - test.flac")
+	destDir := filepath.Join(tmpDir, "dest")
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	if destInfo.Size() > srcInfo.Size() {
-		t.Error("Processed file is larger than source file")
+	dummyCover := []byte("fake jpeg cover art content")
+	_, err = ProcessFLACFile(srcFile, testDataDir, destDir, dummyCover)
+	if err != nil {
+		t.Fatalf("ProcessFLACFile with embedCover error = %v", err)
+	}
+
+	destFile := filepath.Join(destDir, "01 - test.flac")
+	parsedDest, err := flac.ParseFile(destFile)
+	if err != nil {
+		t.Fatalf("Failed to parse destination FLAC: %v", err)
+	}
+
+	var foundCover bool
+	for _, block := range parsedDest.Meta {
+		if block.Type != flac.Picture {
+			continue
+		}
+		picType, mimeType, imgData, err := ExtractPictureFromMetaDataBlock(block.Data)
+		if err != nil {
+			t.Fatalf("Failed to extract embedded picture: %v", err)
+		}
+		if picType != 3 {
+			t.Errorf("Expected picture type 3 (Front Cover), got %d", picType)
+		}
+		if mimeType != "image/jpeg" {
+			t.Errorf("Expected mime type image/jpeg, got %s", mimeType)
+		}
+		if !bytes.Equal(imgData, dummyCover) {
+			t.Errorf("Embedded data mismatch, expected %q, got %q", dummyCover, imgData)
+		}
+		foundCover = true
+	}
+	if !foundCover {
+		t.Error("Expected embedded PICTURE block in destination FLAC, none found")
+	}
+}
+
+func TestExtractPictureFromMetaDataBlockErrors(t *testing.T) {
+	// too short
+	_, _, _, err := ExtractPictureFromMetaDataBlock([]byte{1, 2, 3})
+	if err == nil {
+		t.Error("expected error for data too short")
+	}
+
+	// invalid mime length
+	shortMime := make([]byte, 40)
+	// set mime length to 1000
+	shortMime[4] = 0
+	shortMime[5] = 0
+	shortMime[6] = 3
+	shortMime[7] = 232 // 1000
+	_, _, _, err = ExtractPictureFromMetaDataBlock(shortMime)
+	if err == nil {
+		t.Error("expected error for invalid mime length")
 	}
 }

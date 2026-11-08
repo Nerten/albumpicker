@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/go-flac/go-flac"
 	"github.com/nerten/albumpicker/pkg/config"
 )
 
@@ -120,6 +121,111 @@ func TestProcessAlbum(t *testing.T) {
 	}
 }
 
+func TestProcessAlbumWithEmbeddedCover(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "albumpicker_embedded_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "source")
+	destDir := filepath.Join(tmpDir, "dest")
+	albumDir := filepath.Join(srcDir, "embedded_album")
+
+	if err := os.MkdirAll(albumDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	testFlacSource := "../../test_data/01 - test.flac"
+	flacBytes, err := os.ReadFile(testFlacSource)
+	if err != nil {
+		t.Fatalf("failed to read test flac: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(albumDir, "01 - test.flac"), flacBytes, 0o644); err != nil {
+		t.Fatalf("failed to write flac in album: %v", err)
+	}
+
+	cfg := &config.Config{
+		Source:          srcDir,
+		Destination:     destDir,
+		CoverFilenames:  []string{"cover.jpg"}, // none exists in albumDir
+		OutputCoverName: "cover.jpg",
+		CoverHeight:     240,
+	}
+
+	err = ProcessAlbum(albumDir, cfg)
+	if err != nil {
+		t.Fatalf("ProcessAlbum() with embedded cover error = %v", err)
+	}
+
+	destAlbum := filepath.Join(destDir, "embedded_album")
+	destCover := filepath.Join(destAlbum, "cover.jpg")
+	if _, err := os.Stat(destCover); os.IsNotExist(err) {
+		t.Errorf("Expected extracted cover %s was not created", destCover)
+	}
+}
+
+func TestProcessAlbum_WithEmbedCover(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "albumpicker_dualboot_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	srcDir := filepath.Join(tmpDir, "source")
+	destDir := filepath.Join(tmpDir, "dest")
+	albumDir := filepath.Join(srcDir, "album_dual")
+	if err := os.MkdirAll(albumDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	testFlacSource := "../../test_data/01 - test.flac"
+	flacBytes, err := os.ReadFile(testFlacSource)
+	if err != nil {
+		t.Fatalf("failed to read test flac: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(albumDir, "01 - test.flac"), flacBytes, 0o644); err != nil {
+		t.Fatalf("failed to write flac in album: %v", err)
+	}
+
+	cfg := &config.Config{
+		Source:          srcDir,
+		Destination:     destDir,
+		CoverFilenames:  []string{"cover.jpg"},
+		OutputCoverName: "cover.jpg",
+		CoverHeight:     240,
+		EmbedCover:      true,
+	}
+
+	err = ProcessAlbum(albumDir, cfg)
+	if err != nil {
+		t.Fatalf("ProcessAlbum() with EmbedCover error = %v", err)
+	}
+
+	destAlbum := filepath.Join(destDir, "album_dual")
+	destCover := filepath.Join(destAlbum, "cover.jpg")
+	if _, err := os.Stat(destCover); os.IsNotExist(err) {
+		t.Errorf("Expected Rockbox cover %s was not created", destCover)
+	}
+
+	destFlac := filepath.Join(destAlbum, "01 - test.flac")
+	parsed, err := flac.ParseFile(destFlac)
+	if err != nil {
+		t.Fatalf("failed to parse destination flac: %v", err)
+	}
+
+	var hasCover bool
+	for _, block := range parsed.Meta {
+		if block.Type == flac.Picture {
+			hasCover = true
+			break
+		}
+	}
+	if !hasCover {
+		t.Error("Expected embedded PICTURE block in destination FLAC when EmbedCover is true")
+	}
+}
+
 func TestFindAllAlbums(t *testing.T) {
 	// create temporary test directory structure
 	tmpDir, err := os.MkdirTemp("", "albumpicker_find_test")
@@ -131,10 +237,12 @@ func TestFindAllAlbums(t *testing.T) {
 	// create test directory structure
 	testDirs := map[string][]string{
 		"album1":                          {"track1.flac", "track2.flac"},
-		"album2":                          {"track1.flac", "cover.jpg"},
+		"album2":                          {"track1.mp3", "cover.jpg"},
+		"album3":                          {"track1.m4a", "track2.alac"},
+		"album4":                          {"track1.aac"},
 		"empty":                           {},
-		"noflac":                          {"track1.mp3", "track2.mp3"},
-		filepath.Join("nested", "album3"): {"track1.flac"},
+		"nonaudio":                        {"notes.txt", "info.pdf"},
+		filepath.Join("nested", "album5"): {"track1.flac"},
 	}
 
 	for dir, files := range testDirs {
@@ -156,11 +264,13 @@ func TestFindAllAlbums(t *testing.T) {
 		t.Errorf("findAllAlbums() error = %v", err)
 	}
 
-	// expected albums (directories containing .flac files)
+	// expected albums (directories containing audio files)
 	expected := []string{
 		filepath.Join(tmpDir, "album1"),
 		filepath.Join(tmpDir, "album2"),
-		filepath.Join(tmpDir, "nested", "album3"),
+		filepath.Join(tmpDir, "album3"),
+		filepath.Join(tmpDir, "album4"),
+		filepath.Join(tmpDir, "nested", "album5"),
 	}
 
 	if len(albums) != len(expected) {
